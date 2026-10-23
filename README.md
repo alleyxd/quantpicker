@@ -38,8 +38,7 @@ pip install quantpicker
 ```
 
 or run it without installing: `uvx quantpicker unsloth/Qwen3-8B-GGUF`. There are also binaries for Windows, Linux
-and macOS on the [releases](https://github.com/alleyxd/quantpicker/releases) page, or build from source with
-`cargo install --git https://github.com/alleyxd/quantpicker`.
+and macOS on the [releases](https://github.com/alleyxd/quantpicker/releases) page, or with Rust: `cargo install quantpicker`.
 
 ## Finding a model
 

@@ -9,7 +9,17 @@ use indicatif::{ProgressBar, ProgressStyle};
 use regex::Regex;
 use serde::Deserialize;
 
-const HF: &str = "https://huggingface.co";
+/// Hugging Face base URL. `HF_ENDPOINT` points it at a mirror, the same variable huggingface_hub reads.
+fn hf() -> String {
+    endpoint(std::env::var("HF_ENDPOINT").ok())
+}
+
+fn endpoint(var: Option<String>) -> String {
+    match var {
+        Some(v) if !v.trim().is_empty() => v.trim().trim_end_matches('/').to_string(),
+        _ => "https://huggingface.co".to_string(),
+    }
+}
 
 #[derive(Deserialize)]
 struct Entry {
@@ -57,7 +67,7 @@ fn client(token: Option<&str>) -> Result<reqwest::blocking::Client> {
 }
 
 pub fn list_quants(repo: &str, token: Option<&str>) -> Result<Vec<Quant>> {
-    let url = format!("{HF}/api/models/{repo}/tree/main?recursive=true");
+    let url = format!("{}/api/models/{repo}/tree/main?recursive=true", hf());
     let resp = client(token)?.get(&url).send()?;
     if resp.status() == 404 || resp.status() == 401 {
         bail!("can't see {repo} on Hugging Face (check the name, or set HF_TOKEN for gated repos)");
@@ -78,7 +88,7 @@ pub struct Repo {
 /// GGUF repos on Hugging Face matching `query`. Repos named after the query come first, then by downloads.
 pub fn search(query: &str, limit: usize, token: Option<&str>) -> Result<Vec<Repo>> {
     let resp = client(token)?
-        .get(format!("{HF}/api/models"))
+        .get(format!("{}/api/models", hf()))
         .query(&[
             ("search", query),
             ("filter", "gguf"),
@@ -158,7 +168,7 @@ pub fn download(repo: &str, quant: &Quant, dir: &Path, token: Option<&str>) -> R
         }
         let part = dest.with_extension("gguf.part");
         let have = fs::metadata(&part).map(|m| m.len()).unwrap_or(0);
-        let url = format!("{HF}/{repo}/resolve/main/{file}");
+        let url = format!("{}/{repo}/resolve/main/{file}", hf());
         let mut req = client.get(&url);
         if have > 0 {
             req = req.header("Range", format!("bytes={have}-"));
@@ -201,6 +211,16 @@ pub fn download(repo: &str, quant: &Quant, dir: &Path, token: Option<&str>) -> R
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn endpoint_defaults_and_mirrors() {
+        assert_eq!(endpoint(None), "https://huggingface.co");
+        assert_eq!(endpoint(Some("  ".into())), "https://huggingface.co");
+        assert_eq!(
+            endpoint(Some("https://hf-mirror.com/".into())),
+            "https://hf-mirror.com"
+        );
+    }
 
     #[test]
     fn parses_quant_names() {

@@ -84,7 +84,8 @@ quantpicker <repo> [options]    measure and pick
   --json out.json          save every number
 ```
 
-Gated repos work with `HF_TOKEN` set.
+Gated repos work with `HF_TOKEN` set. To download through a mirror, set `HF_ENDPOINT` (for example
+`https://hf-mirror.com`), the same variable the Hugging Face tools use.
 
 ## Notes
 

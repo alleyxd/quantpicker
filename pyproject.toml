@@ -1,0 +1,26 @@
+[build-system]
+requires = ["maturin>=1.7,<2"]
+build-backend = "maturin"
+
+[project]
+name = "quantpicker"
+description = "Measures which GGUF quant of a model to run on your GPU: real speed and quality loss, not estimates"
+readme = "README.md"
+requires-python = ">=3.8"
+license = "MIT"
+authors = [{ name = "Ali Ashter" }]
+keywords = ["llm", "gguf", "quantization", "llama.cpp", "benchmark"]
+classifiers = [
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Rust",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dynamic = ["version"]
+
+[project.urls]
+Repository = "https://github.com/alleyxd/quantpicker"
+
+[tool.maturin]
+bindings = "bin"

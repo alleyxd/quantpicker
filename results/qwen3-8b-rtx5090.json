@@ -1,0 +1,102 @@
+{
+  "chunks": 40,
+  "ctx": 512,
+  "gpu": "NVIDIA GeForce RTX 5090",
+  "llama_cpp": "b11829",
+  "pick": "IQ4_XS",
+  "reference": "Q8_0",
+  "repo": "unsloth/Qwen3-8B-GGUF",
+  "results": [
+    {
+      "error": null,
+      "fits": true,
+      "gen_tps": 314.439577,
+      "mean_kld": 0.262244,
+      "p99_kld": 2.860476,
+      "ppl_ratio": 1.136334,
+      "prompt_tps": 10070.838007,
+      "quant": "Q2_K",
+      "reference": false,
+      "same_top": 80.147,
+      "size": 3281733440
+    },
+    {
+      "error": null,
+      "fits": true,
+      "gen_tps": 270.354298,
+      "mean_kld": 0.094558,
+      "p99_kld": 1.106925,
+      "ppl_ratio": 1.052869,
+      "prompt_tps": 12147.848437,
+      "quant": "Q3_K_M",
+      "reference": false,
+      "same_top": 87.961,
+      "size": 4124161856
+    },
+    {
+      "error": null,
+      "fits": true,
+      "gen_tps": 264.017426,
+      "mean_kld": 0.037054,
+      "p99_kld": 0.425147,
+      "ppl_ratio": 1.029309,
+      "prompt_tps": 14325.861747,
+      "quant": "IQ4_XS",
+      "reference": false,
+      "same_top": 92.216,
+      "size": 4581287744
+    },
+    {
+      "error": null,
+      "fits": true,
+      "gen_tps": 237.178333,
+      "mean_kld": 0.030196,
+      "p99_kld": 0.366356,
+      "ppl_ratio": 1.013272,
+      "prompt_tps": 13084.776335,
+      "quant": "Q4_K_M",
+      "reference": false,
+      "same_top": 92.99,
+      "size": 5027784512
+    },
+    {
+      "error": null,
+      "fits": true,
+      "gen_tps": 213.326798,
+      "mean_kld": 0.013107,
+      "p99_kld": 0.140233,
+      "ppl_ratio": 1.017774,
+      "prompt_tps": 12813.115779,
+      "quant": "Q5_K_M",
+      "reference": false,
+      "same_top": 95.314,
+      "size": 5851113280
+    },
+    {
+      "error": null,
+      "fits": true,
+      "gen_tps": 190.957327,
+      "mean_kld": 0.005727,
+      "p99_kld": 0.05501,
+      "ppl_ratio": 1.011049,
+      "prompt_tps": 11124.128591,
+      "quant": "Q6_K",
+      "reference": false,
+      "same_top": 96.52,
+      "size": 6725900096
+    },
+    {
+      "error": null,
+      "fits": true,
+      "gen_tps": 161.743984,
+      "mean_kld": 0.0,
+      "p99_kld": 0.0,
+      "ppl_ratio": 1.0,
+      "prompt_tps": 13832.708218,
+      "quant": "Q8_0",
+      "reference": true,
+      "same_top": 100.0,
+      "size": 8709519168
+    }
+  ]
+}

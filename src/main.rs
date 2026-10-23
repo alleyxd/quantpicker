@@ -240,7 +240,7 @@ fn run(args: Args, token: Option<&str>) -> Result<()> {
 
     let all = quants_or_suggest(&repo, token)?;
     let reference = pick_reference(&all, &args.reference)?;
-    let mut todo = select(&all, &args.quants, &reference.name);
+    let mut todo = select(&all, &args.quants, &reference.name)?;
     todo.retain(|q| q.name != reference.name);
     eprintln!(
         "{}: {} quants, testing {} against {} ({})",
@@ -413,23 +413,41 @@ fn pick_reference(all: &[Quant], wanted: &str) -> Result<Quant> {
         })
 }
 
-fn select(all: &[Quant], wanted: &[String], reference: &str) -> Vec<Quant> {
+fn select(all: &[Quant], wanted: &[String], reference: &str) -> Result<Vec<Quant>> {
     if wanted.iter().any(|w| w.eq_ignore_ascii_case("all")) {
-        return all
+        return Ok(all
             .iter()
             .filter(|q| !matches!(q.name.as_str(), "BF16" | "F16" | "F32"))
             .cloned()
-            .collect();
+            .collect());
     }
     let names: Vec<String> = if wanted.is_empty() {
         DEFAULT_QUANTS.iter().map(|s| s.to_string()).collect()
     } else {
         wanted.iter().map(|w| w.to_uppercase()).collect()
     };
-    all.iter()
+    // asking for a quant the repo doesn't have is almost always a typo, so say so instead of skipping it
+    let missing: Vec<&String> = names
+        .iter()
+        .filter(|n| !wanted.is_empty() && !all.iter().any(|q| &q.name == *n))
+        .collect();
+    if !missing.is_empty() {
+        let have: Vec<&str> = all.iter().map(|q| q.name.as_str()).collect();
+        bail!(
+            "not in this repo: {}. Available: {}",
+            missing
+                .iter()
+                .map(|s| s.as_str())
+                .collect::<Vec<_>>()
+                .join(", "),
+            have.join(", ")
+        );
+    }
+    Ok(all
+        .iter()
         .filter(|q| names.contains(&q.name) || q.name == reference)
         .cloned()
-        .collect()
+        .collect())
 }
 
 fn remove(dir: &Path, q: &Quant) {
@@ -454,4 +472,38 @@ fn wikitext(data: &Path) -> Result<PathBuf> {
         .context("wiki.test.raw missing from archive")?;
     std::io::copy(&mut file, &mut fs::File::create(&path)?)?;
     Ok(path)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn quants(names: &[&str]) -> Vec<Quant> {
+        names
+            .iter()
+            .map(|n| Quant {
+                name: n.to_string(),
+                files: vec![],
+                size: 0,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn default_selection_skips_what_the_repo_lacks() {
+        let all = quants(&["Q4_K_M", "Q8_0", "BF16"]);
+        let picked = select(&all, &[], "Q8_0").unwrap();
+        assert_eq!(
+            picked.iter().map(|q| q.name.as_str()).collect::<Vec<_>>(),
+            ["Q4_K_M", "Q8_0"]
+        );
+    }
+
+    #[test]
+    fn unknown_requested_quant_is_an_error() {
+        let all = quants(&["Q4_K_M", "Q8_0"]);
+        let err = select(&all, &["q4_k_m".into(), "Q5_K_S".into()], "Q8_0").unwrap_err();
+        assert!(err.to_string().contains("not in this repo: Q5_K_S"));
+        assert_eq!(select(&all, &["q4_k_m".into()], "Q8_0").unwrap().len(), 2);
+    }
 }

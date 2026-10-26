@@ -155,6 +155,27 @@ fn group(entries: Vec<Entry>) -> Vec<Quant> {
     quants
 }
 
+/// Reads a quant's architecture from the start of its first GGUF file, a megabyte or so at a time, without
+/// downloading the weights. Returns None for models whose KV cache we can't size (e.g. MLA attention).
+pub fn shape(repo: &str, quant: &Quant, token: Option<&str>) -> Result<Option<crate::gguf::Shape>> {
+    let client = client(token)?;
+    let url = format!("{}/{repo}/resolve/main/{}", hf(), quant.files[0]);
+    let mut want: usize = 1 << 20;
+    loop {
+        let resp = client
+            .get(&url)
+            .header("Range", format!("bytes=0-{}", want - 1))
+            .send()?
+            .error_for_status()?;
+        let bytes = resp.bytes()?;
+        let kv = crate::gguf::metadata(&bytes, crate::gguf::has_shape_keys)?;
+        if crate::gguf::has_shape_keys(&kv) || bytes.len() < want || want >= 64 << 20 {
+            return Ok(crate::gguf::shape(&kv));
+        }
+        want *= 4;
+    }
+}
+
 /// Downloads every file of a quant into `dir`, resuming partial downloads. Returns the path of the first
 /// file, which is what llama.cpp wants for split models.
 pub fn download(repo: &str, quant: &Quant, dir: &Path, token: Option<&str>) -> Result<PathBuf> {

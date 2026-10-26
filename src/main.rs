@@ -1,3 +1,4 @@
+mod gguf;
 mod gpu;
 mod hf;
 mod llama;
@@ -66,6 +67,10 @@ enum Cmd {
         /// Memory to leave free for context and buffers, in GiB.
         #[arg(long, default_value_t = 1.5)]
         headroom: f64,
+
+        /// Plan for this many tokens of context: its KV cache is counted against GPU memory.
+        #[arg(long)]
+        context: Option<u64>,
     },
 }
 
@@ -89,6 +94,10 @@ struct Args {
     /// Memory to leave free for context and buffers, in GiB.
     #[arg(long, default_value_t = 1.5)]
     headroom: f64,
+
+    /// Plan for this many tokens of context: its KV cache is counted against GPU memory.
+    #[arg(long)]
+    context: Option<u64>,
 
     /// Highest mean KL divergence you'll accept. Lower means closer to the reference.
     #[arg(long, default_value_t = 0.05)]
@@ -140,7 +149,8 @@ fn main() {
             repo,
             vram,
             headroom,
-        }) => list(&repo, vram, headroom, token.as_deref()),
+            context,
+        }) => list(&repo, vram, headroom, context, token.as_deref()),
         None => match cli.run.repo.as_deref() {
             // "qwen3-8b" isn't a repo name, so treat it as a search
             Some(r) if !r.contains('/') => {
@@ -190,9 +200,16 @@ Next: quantpicker list {}",
     Ok(())
 }
 
-fn list(repo: &str, vram: Option<f64>, headroom: f64, token: Option<&str>) -> Result<()> {
+fn list(
+    repo: &str,
+    vram: Option<f64>,
+    headroom: f64,
+    context: Option<u64>,
+    token: Option<&str>,
+) -> Result<()> {
     let (gpu, budget, usable) = budget(vram, headroom)?;
     let quants = quants_or_suggest(repo, token)?;
+    let usable = usable.saturating_sub(context_kv(repo, &quants, context, token)?);
     let where_ = match &gpu {
         Some(g) if vram.is_none() => format!("{} with {} free", g.name, gb(g.free)),
         _ => gb(budget),
@@ -239,6 +256,7 @@ fn run(args: Args, token: Option<&str>) -> Result<()> {
     }
 
     let all = quants_or_suggest(&repo, token)?;
+    let usable = usable.saturating_sub(context_kv(&repo, &all, args.context, token)?);
     let reference = pick_reference(&all, &args.reference)?;
     let mut todo = select(&all, &args.quants, &reference.name)?;
     todo.retain(|q| q.name != reference.name);
@@ -397,6 +415,36 @@ fn run(args: Args, token: Option<&str>) -> Result<()> {
         fs::write(path, serde_json::to_string_pretty(&out)?)?;
     }
     Ok(())
+}
+
+/// KV cache bytes for `context` tokens, read from the model's GGUF header. Every quant of a model has the same
+/// shape, so the smallest file is enough. 0 when no context was asked for or the architecture can't be sized.
+fn context_kv(
+    repo: &str,
+    quants: &[Quant],
+    context: Option<u64>,
+    token: Option<&str>,
+) -> Result<u64> {
+    let Some(ctx) = context else { return Ok(0) };
+    let Some(q) = quants.iter().min_by_key(|q| q.size) else {
+        return Ok(0);
+    };
+    match hf::shape(repo, q, token)? {
+        Some(shape) => {
+            let kv = gguf::kv_bytes(&shape, ctx);
+            eprintln!(
+                "KV cache for {ctx} tokens ({}, {} layers, 16-bit): {}",
+                shape.arch,
+                shape.layers,
+                gb(kv)
+            );
+            Ok(kv)
+        }
+        None => {
+            eprintln!("can't size the KV cache for this model's attention; --context is ignored");
+            Ok(0)
+        }
+    }
 }
 
 fn pick_reference(all: &[Quant], wanted: &str) -> Result<Quant> {

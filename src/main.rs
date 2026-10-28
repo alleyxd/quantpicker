@@ -68,8 +68,8 @@ enum Cmd {
         #[arg(long, default_value_t = 1.5)]
         headroom: f64,
 
-        /// Plan for this many tokens of context: its KV cache is counted against GPU memory.
-        #[arg(long)]
+        /// Plan for this many tokens of context, e.g. 8192 or 32k: its KV cache is counted against GPU memory.
+        #[arg(long, value_parser = parse_tokens)]
         context: Option<u64>,
     },
 }
@@ -95,8 +95,8 @@ struct Args {
     #[arg(long, default_value_t = 1.5)]
     headroom: f64,
 
-    /// Plan for this many tokens of context: its KV cache is counted against GPU memory.
-    #[arg(long)]
+    /// Plan for this many tokens of context, e.g. 8192 or 32k: its KV cache is counted against GPU memory.
+    #[arg(long, value_parser = parse_tokens)]
     context: Option<u64>,
 
     /// Highest mean KL divergence you'll accept. Lower means closer to the reference.
@@ -417,6 +417,24 @@ fn run(args: Args, token: Option<&str>) -> Result<()> {
     Ok(())
 }
 
+/// A token count like 8192, 32k or 1m. k and m are powers of two, as context sizes usually are.
+fn parse_tokens(s: &str) -> Result<u64, String> {
+    let t = s.trim().to_ascii_lowercase();
+    let (num, scale) = match t.strip_suffix('k') {
+        Some(n) => (n, 1024),
+        None => match t.strip_suffix('m') {
+            Some(n) => (n, 1024 * 1024),
+            None => (t.as_str(), 1),
+        },
+    };
+    match num.trim().parse::<u64>() {
+        Ok(n) if n > 0 => Ok(n * scale),
+        _ => Err(format!(
+            "expected a token count like 8192 or 32k, got {s:?}"
+        )),
+    }
+}
+
 /// KV cache bytes for `context` tokens, read from the model's GGUF header. Every quant of a model has the same
 /// shape, so the smallest file is enough. 0 when no context was asked for or the architecture can't be sized.
 fn context_kv(
@@ -525,6 +543,17 @@ fn wikitext(data: &Path) -> Result<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn token_counts() {
+        assert_eq!(parse_tokens("8192"), Ok(8192));
+        assert_eq!(parse_tokens("32k"), Ok(32768));
+        assert_eq!(parse_tokens("128K"), Ok(131072));
+        assert_eq!(parse_tokens("1m"), Ok(1 << 20));
+        assert!(parse_tokens("0").is_err());
+        assert!(parse_tokens("32kb").is_err());
+        assert!(parse_tokens("k").is_err());
+    }
 
     fn quants(names: &[&str]) -> Vec<Quant> {
         names

@@ -56,7 +56,7 @@ A quant that fits with a short prompt can still run out of memory at 32K tokens.
 shape from the first megabyte of its GGUF file and counts the KV cache too, without downloading the model:
 
 ```
-quantpicker list unsloth/Qwen3-8B-GGUF --context 32768
+quantpicker list unsloth/Qwen3-8B-GGUF --context 32k
 KV cache for 32768 tokens (qwen3, 36 layers, 16-bit): 4.5 GiB
 ```
 
@@ -87,7 +87,7 @@ quantpicker <repo> [options]    measure and pick
   --max-kld 0.05           quality you're willing to give up
   --vram 24                plan for this much memory (GiB) instead of what's free now
   --headroom 1.5           GiB to leave for context and buffers
-  --context 32768          plan for this much context: its KV cache counts against GPU memory
+  --context 32k            plan for this much context (8192, 32k, 128k): its KV cache counts against GPU memory
   --chunks 40              test-text chunks for the quality check; more is slower and tighter
   --text file.txt          measure quality on your own text instead of wikitext-2
   --llama-dir path         use your own llama.cpp build

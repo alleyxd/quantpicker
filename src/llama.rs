@@ -75,14 +75,8 @@ fn install(backend: Option<&str>, gpu: Option<&Gpu>) -> Result<Llama> {
         .send()?
         .error_for_status()?
         .json()?;
-    // the newest entries with real build assets; some tags only carry a marker file
-    let rel = releases
-        .into_iter()
-        .find(|r| r.assets.len() > 5)
-        .context("no llama.cpp release with builds")?;
-    let names: Vec<&str> = rel.assets.iter().map(|a| a.name.as_str()).collect();
-    let picked = pick_assets(
-        &names,
+    let (rel, picked) = pick_release(
+        releases,
         std::env::consts::OS,
         std::env::consts::ARCH,
         backend,
@@ -118,6 +112,28 @@ fn install(backend: Option<&str>, gpu: Option<&Gpu>) -> Result<Llama> {
         version: rel.tag_name,
         ..l
     })
+}
+
+/// The newest release that has a build for this machine. A new release takes a while to upload all its
+/// archives (and some tags only carry a marker file), so the latest one may not have ours yet.
+fn pick_release(
+    releases: Vec<Release>,
+    os: &str,
+    arch: &str,
+    backend: Option<&str>,
+    cuda: Option<(u32, u32)>,
+) -> Result<(Release, Picked)> {
+    let mut first_err = None;
+    for rel in releases {
+        let names: Vec<&str> = rel.assets.iter().map(|a| a.name.as_str()).collect();
+        match pick_assets(&names, os, arch, backend, cuda) {
+            Ok(p) => return Ok((rel, p)),
+            Err(e) => {
+                first_err.get_or_insert(e);
+            }
+        }
+    }
+    Err(first_err.unwrap_or_else(|| anyhow::anyhow!("no llama.cpp release with builds")))
 }
 
 fn find_bin_dir(dir: &Path) -> Option<Llama> {
@@ -416,6 +432,34 @@ mod tests {
         let p = pick_assets(ASSETS, "windows", "x86_64", Some("cpu"), None).unwrap();
         assert_eq!(p.files, ["llama-b11829-bin-win-cpu-x64.zip"]);
         assert!(pick_assets(ASSETS, "windows", "x86_64", None, Some((11, 0))).is_err());
+    }
+
+    fn release(tag: &str, names: &[&str]) -> Release {
+        Release {
+            tag_name: tag.into(),
+            assets: names
+                .iter()
+                .map(|n| Asset {
+                    name: n.to_string(),
+                    browser_download_url: String::new(),
+                })
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn skips_a_release_still_uploading_its_builds() {
+        let partial: Vec<&str> = ASSETS
+            .iter()
+            .copied()
+            .filter(|n| !n.contains("-win-"))
+            .collect();
+        let releases = vec![release("b11830", &partial), release("b11829", ASSETS)];
+        let (rel, p) = pick_release(releases, "windows", "x86_64", None, Some((13, 4))).unwrap();
+        assert_eq!(rel.tag_name, "b11829");
+        assert_eq!(p.backend, "cuda-13.4");
+        let releases = vec![release("b11830", &partial)];
+        assert!(pick_release(releases, "windows", "x86_64", None, Some((13, 4))).is_err());
     }
 
     #[test]
